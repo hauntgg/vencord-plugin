@@ -17,6 +17,7 @@ export interface CatalogTier extends CatalogBadge {
 export const BADGE_CATALOG: Record<string, CatalogBadge> = {
     "owner": { title: "Owner", description: "Be a part of the haunt.gg owner team.", color: "#9e6bff" },
     "manager": { title: "Manager", description: "Be a part of the haunt.gg manager team.", color: "#ff4242" },
+    "supervisor": { title: "Supervisor", description: "Be a part of the haunt.gg supervisor team.", color: "#29c4fe" },
     "staff": { title: "Staff", description: "Be a part of the haunt.gg staff team.", color: "#6783ff" },
     "helper": { title: "Helper", description: "Be a part of the haunt.gg helper team.", color: "#d4843d" },
     "og": { title: "OG", description: "Be an early supporter of haunt.gg.", color: "#ffd700" },
