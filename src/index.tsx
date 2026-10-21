@@ -11,7 +11,7 @@ import { definePluginSettings, SettingsStore } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import definePlugin, { OptionType } from "@utils/types";
 import { User } from "@vencord/discord-types";
-import { showToast, Toasts } from "@webpack/common";
+import { showToast } from "@webpack/common";
 
 import { clearCache, dropPersistedCache, loadPersistedCache, refreshAll, setKeyRejectedHandler } from "./cache";
 import { ChatDecoration } from "./components/ChatDecoration";
@@ -253,7 +253,7 @@ export default definePlugin({
 
     start() {
         setKeyRejectedHandler(message =>
-            showToast(`Haunt: ${message} — check your API key in the plugin settings`, Toasts.Type.FAILURE));
+            showToast({ text: `Haunt: ${message} — check your API key in the plugin settings`, variant: "critical" }));
 
         SettingsStore.addPrefixChangeListener(SETTINGS_PREFIX, refreshAll);
 

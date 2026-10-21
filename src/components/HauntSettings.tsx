@@ -7,7 +7,7 @@
 import { Button } from "@components/Button";
 import { Flex } from "@components/Flex";
 import { Span } from "@components/Span";
-import { showToast, Toasts, UserStore,useState } from "@webpack/common";
+import { showToast, UserStore,useState } from "@webpack/common";
 
 import { settings } from "..";
 import { logger, lookupByDiscordId } from "../api";
@@ -28,31 +28,31 @@ export function HauntSettings() {
 
             switch (result.kind) {
                 case "ok":
-                    showToast(`Key works — you are ${result.profile.user.username} (#${result.profile.user.uid})`, Toasts.Type.SUCCESS);
+                    showToast({ text: `Key works — you are ${result.profile.user.username} (#${result.profile.user.uid})`, variant: "success" });
                     break;
                 case "none":
-                    showToast(
-                        result.reason === "private"
+                    showToast({
+                        text: result.reason === "private"
                             ? "Key works, but your profile has public API access switched off"
                             : "Key works, but no haunt.gg account is linked to your Discord",
-                        Toasts.Type.MESSAGE
-                    );
+                        variant: "default"
+                    });
                     break;
                 case "unauthorized":
-                    showToast(`Key rejected: ${result.message}`, Toasts.Type.FAILURE);
+                    showToast({ text: `Key rejected: ${result.message}`, variant: "critical" });
                     break;
                 case "ratelimited":
-                    showToast("Rate limited — try again in a minute", Toasts.Type.FAILURE);
+                    showToast({ text: "Rate limited — try again in a minute", variant: "critical" });
                     break;
                 case "error":
-                    showToast(`Lookup failed: ${result.message}`, Toasts.Type.FAILURE);
+                    showToast({ text: `Lookup failed: ${result.message}`, variant: "critical" });
                     break;
             }
 
             if (result.kind !== "error") clearCache();
         } catch (e) {
             logger.error("Key test failed", e);
-            showToast("Lookup failed — see the console", Toasts.Type.FAILURE);
+            showToast({ text: "Lookup failed — see the console", variant: "critical" });
         } finally {
             setTesting(false);
         }
@@ -75,7 +75,7 @@ export function HauntSettings() {
                     variant="secondary"
                     onClick={() => {
                         clearCache();
-                        showToast("Cleared the Haunt cache", Toasts.Type.SUCCESS);
+                        showToast({ text: "Cleared the Haunt cache", variant: "success" });
                     }}
                 >
                     Clear cache

@@ -69,6 +69,7 @@ export const BADGE_TIER_CATALOG: Record<string, Record<number, CatalogTier>> = {
     },
     "halloween": {
         1: { tier: 1, title: "Halloween 2025", description: "Claimed during the haunt.gg Halloween 2025 sale.", color: "#ea6023" },
+        2: { tier: 2, title: "Halloween 2026", description: "Claimed during the haunt.gg Halloween 2026 sale.", color: "#ea6023" },
     },
     "likes": {
         1: { tier: 1, title: "Liked", description: "Receive your first profile like.", color: "#ff6f61" },
