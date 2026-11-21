@@ -110,6 +110,8 @@ export const BADGE_TIER_CATALOG: Record<string, Record<number, CatalogTier>> = {
         4: { tier: 4, title: "Elite", description: "Reach level 30 on the haunt.gg discord server.", color: "#8b4fc0" },
         5: { tier: 5, title: "Master", description: "Reach level 40 on the haunt.gg discord server.", color: "#e0533e" },
         6: { tier: 6, title: "Legend", description: "Reach level 50 on the haunt.gg discord server.", color: "#e0a92e" },
+        7: { tier: 7, title: "Ascendant", description: "Reach level 75 on the haunt.gg discord server.", color: "#1fb8c9" },
+        8: { tier: 8, title: "Immortal", description: "Reach level 100 on the haunt.gg discord server.", color: "#e64980" },
     },
     "event": {
         1: { tier: 1, title: "Participant", description: "Participate in a haunt.gg event.", color: "#4f8fe8" },

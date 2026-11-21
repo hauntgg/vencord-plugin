@@ -358,7 +358,7 @@ Your `src/userplugins` folder is left alone — Git ignores it on purpose. You o
 
 ### Refreshing the badge catalog
 
-Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken from the official haunt.gg badge list (24 badges, 43 tiers). The images come from the API live, the texts do not. If haunt.gg adds new badges, their names and descriptions are missing until somebody updates that file — the badges themselves still show up.
+Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken from the official haunt.gg badge list (25 badges, 52 tiers). The images come from the API live, the texts do not. If haunt.gg adds new badges, their names and descriptions are missing until somebody updates that file — the badges themselves still show up.
 
 ---
 
