@@ -22,7 +22,7 @@ export const BADGE_CATALOG: Record<string, CatalogBadge> = {
     "helper": { title: "Helper", description: "Be a part of the haunt.gg helper team.", color: "#d4843d" },
     "og": { title: "OG", description: "Be an early supporter of haunt.gg.", color: "#ffd700" },
     "verified": { title: "Verified", description: "Purchase or be a known content creator.", color: "#008ada" },
-    "bug-hunter": { title: "Bug Hunter", description: "Report a bug to the haunt.gg team.", color: "#3d9e5c" },
+    "bug-hunter": { title: "Bug Hunter", description: "Earn bug points with the bugs you report to the haunt.gg team.", color: "#3d9e5c" },
     "donator": { title: "Donator", description: "Awarded for donating to haunt.gg.", color: "#13a15a" },
     "premium": { title: "Premium", description: "Purchase the premium package.", color: "#a749dd" },
     "champion": { title: "Champion", description: "Reach the top 10 on the profile views leaderboard.", color: "#ffdb58" },
@@ -43,6 +43,14 @@ export const BADGE_CATALOG: Record<string, CatalogBadge> = {
 };
 
 export const BADGE_TIER_CATALOG: Record<string, Record<number, CatalogTier>> = {
+    "bug-hunter": {
+        1: { tier: 1, title: "Seeker", description: "Earn 5 bug points with the bugs you report.", color: "#3d9e5c" },
+        2: { tier: 2, title: "Wrangler", description: "Earn 10 bug points with the bugs you report.", color: "#9b6bdf" },
+        3: { tier: 3, title: "Inspector", description: "Earn 25 bug points with the bugs you report.", color: "#8f9bb0" },
+        4: { tier: 4, title: "Bug Hunter", description: "Earn 50 bug points with the bugs you report.", color: "#e0533e" },
+        5: { tier: 5, title: "Scout", description: "Earn 100 bug points with the bugs you report.", color: "#4a8fe0" },
+        6: { tier: 6, title: "Collector", description: "Earn 250 bug points with the bugs you report.", color: "#f1bf0f" },
+    },
     "christmas": {
         1: { tier: 1, title: "Christmas 2025", description: "Claimed during the haunt.gg Christmas 2025 sale.", color: "#e71c1c" },
     },
