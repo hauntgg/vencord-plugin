@@ -23,6 +23,12 @@ export interface HauntBadgeTier {
     imageUrl: string | null;
 }
 
+export interface HauntBadgeCatalog {
+    title: string;
+    description: string;
+    color: string;
+}
+
 export interface HauntBadge {
     id: string;
     type: "STANDARD" | "CUSTOM";
@@ -38,6 +44,8 @@ export interface HauntBadge {
     imageUrl: string | null;
     /** Iconify markup of a custom badge that uses an icon instead of an upload. */
     iconSvg?: string | null;
+    /** The official name, description and colour of the tier the artwork shows. `null` for custom badges. */
+    catalog?: HauntBadgeCatalog | null;
     tiers: HauntBadgeTier[];
 }
 
@@ -68,7 +76,7 @@ export interface HauntProfile {
     feedback: HauntFeedback | null;
 }
 
-/** A successful `GET /api/lookup/user` body. Failures are a `HauntErrorBody`. */
+/** A successful `GET /api/lookup/user` body. A failure is `{ error, code }` plus the fields its code documents. */
 export interface HauntLookupResponse {
     user: HauntUser;
     badges?: HauntBadge[];
@@ -77,21 +85,33 @@ export interface HauntLookupResponse {
 }
 
 /**
- * Every failed response of the haunt.gg API. `code` is the stable identifier,
- * `error` an English sentence whose wording may change.
- */
-export interface HauntErrorBody {
-    error: string;
-    code?: string;
-    param?: string;
-}
-
-/**
  * An account that exists but that the API refuses to hand out:
  * banned (`USER_BANNED`), opted out of the public API (`PROFILE_PRIVATE`), or
  * disabled / scheduled for deletion by its owner (`USER_UNAVAILABLE`).
  */
 export type HauntAccountStatus = "banned" | "private" | "unavailable";
+
+/** Who a banned account is. The API names nobody for a private or disabled one. */
+export interface HauntStatusUser {
+    username: string;
+    uid: number;
+}
+
+/** Why an account is `unavailable`, where the API says so. */
+export type HauntUnavailableReason = "disabled" | "pending-deletion";
+
+/** The optional parts of a profile. Each one costs haunt.gg a query, so only what is shown gets asked for. */
+export const LOOKUP_INCLUDES = ["badges", "views", "feedback"] as const;
+export type LookupInclude = typeof LOOKUP_INCLUDES[number];
+
+export const LOOKUP_TYPES = ["discord", "username", "uid", "id"] as const;
+export type LookupType = typeof LOOKUP_TYPES[number];
+
+/** Who a lookup is about: `type` says how to read `value`. */
+export interface LookupTarget {
+    type: LookupType;
+    value: string;
+}
 
 /** What the transport hands back: the raw answer, or `status: 0` when no answer arrived. */
 export interface RawLookupResponse {

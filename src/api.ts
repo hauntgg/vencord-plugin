@@ -8,7 +8,7 @@ import { Logger } from "@utils/Logger";
 import { PluginNative } from "@utils/types";
 
 import { requestLookup } from "./request";
-import { HauntAccountStatus, HauntBadge, HauntErrorBody, HauntFeedback, HauntProfile, HauntUser, RawLookupResponse } from "./types";
+import { HauntAccountStatus, HauntBadge, HauntBadgeCatalog, HauntFeedback, HauntProfile, HauntStatusUser, HauntUnavailableReason, HauntUser, LookupInclude, LookupTarget, RawLookupResponse } from "./types";
 
 export const logger = new Logger("Haunt");
 
@@ -24,12 +24,12 @@ export function isPlausibleApiKey(apiKey: string) {
 }
 
 export type LookupResult =
-    /** The account, readable. */
-    | { kind: "ok"; profile: HauntProfile; }
+    /** The account, readable, with the optional parts that were asked for. */
+    | { kind: "ok"; profile: HauntProfile; includes: readonly LookupInclude[]; }
     /** No haunt.gg account is linked to this Discord account. */
     | { kind: "none"; }
     /** An account exists, but the API does not hand it out. */
-    | { kind: "status"; status: HauntAccountStatus; message: string; }
+    | { kind: "status"; status: HauntAccountStatus; message: string; user?: HauntStatusUser; reason?: HauntUnavailableReason; }
     /** The key itself is the problem. Asking again with it is pointless. */
     | { kind: "key"; code: string; message: string; }
     | { kind: "ratelimited"; retryAfterMs: number; }
@@ -65,10 +65,16 @@ const KEY_MESSAGES: Record<string, string> = {
 const RATE_LIMIT_DEFAULT_MS = 60_000;
 const RATE_LIMIT_MAX_MS = 10 * 60_000;
 
-function request(apiKey: string, discordId: string): Promise<RawLookupResponse> {
+/** `reason` of a `USER_UNAVAILABLE` answer. */
+const UNAVAILABLE_REASONS: Record<string, HauntUnavailableReason> = {
+    DISABLED: "disabled",
+    PENDING_DELETION: "pending-deletion"
+};
+
+function request(apiKey: string, target: LookupTarget, includes: readonly LookupInclude[]): Promise<RawLookupResponse> {
     // The web build has no main process. haunt.gg sends no CORS headers for
     // this route, so this fails there, but with a proper error instead of a crash.
-    return IS_WEB ? requestLookup(apiKey, discordId) : Native.lookupUser(apiKey, discordId);
+    return IS_WEB ? requestLookup(apiKey, target, includes) : Native.lookupUser(apiKey, target, [...includes]);
 }
 
 function parseJson(data: string): unknown {
@@ -82,12 +88,27 @@ function parseJson(data: string): unknown {
 const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
 
-function parseError(body: unknown): HauntErrorBody | null {
+interface ParsedError {
+    error: string;
+    code?: string;
+    /** The whole body: some codes carry fields of their own next to `error` and `code`. */
+    body: Record<string, unknown>;
+}
+
+function parseError(body: unknown): ParsedError | null {
     if (!isObject(body) || typeof body.error !== "string") return null;
 
     return typeof body.code === "string"
-        ? { error: body.error, code: body.code.toUpperCase() }
-        : { error: body.error };
+        ? { error: body.error, code: body.code.toUpperCase(), body }
+        : { error: body.error, body };
+}
+
+/** `USER_BANNED` names the user as fields. An older API only has them in the sentence, which is not parsed. */
+function parseStatusUser(body: Record<string, unknown>): HauntStatusUser | undefined {
+    if (typeof body.username !== "string" || !body.username) return undefined;
+    if (typeof body.uid !== "number" || !Number.isFinite(body.uid)) return undefined;
+
+    return { username: body.username, uid: body.uid };
 }
 
 function parseUser(raw: unknown): HauntUser | null {
@@ -121,8 +142,16 @@ function parseBadges(raw: unknown): HauntBadge[] {
             order: typeof badge.order === "number" ? badge.order : index,
             enabled: badge.enabled !== false,
             unlockedTiers: Array.isArray(badge.unlockedTiers) ? badge.unlockedTiers.filter(tier => typeof tier === "number") : [],
-            tiers: Array.isArray(badge.tiers) ? badge.tiers.filter(isObject) : []
+            tiers: Array.isArray(badge.tiers) ? badge.tiers.filter(isObject) : [],
+            catalog: parseCatalog(badge.catalog)
         }) as unknown as HauntBadge);
+}
+
+function parseCatalog(raw: unknown): HauntBadgeCatalog | null {
+    if (!isObject(raw)) return null;
+    if (typeof raw.title !== "string" || typeof raw.description !== "string" || typeof raw.color !== "string") return null;
+
+    return { title: raw.title, description: raw.description, color: raw.color };
 }
 
 function parseFeedback(raw: unknown): HauntFeedback | null {
@@ -156,7 +185,7 @@ function retryAfterMs(header: string | null) {
     return Math.min(ms + 1000, RATE_LIMIT_MAX_MS);
 }
 
-export function classifyResponse({ status, retryAfter, data }: RawLookupResponse): LookupResult {
+export function classifyResponse({ status, retryAfter, data }: RawLookupResponse, includes: readonly LookupInclude[] = []): LookupResult {
     if (status === 0) return { kind: "error", message: data || "No answer from haunt.gg" };
 
     const body = parseJson(data);
@@ -164,7 +193,7 @@ export function classifyResponse({ status, retryAfter, data }: RawLookupResponse
     if (status >= 200 && status < 300) {
         const profile = parseProfile(body);
         return profile
-            ? { kind: "ok", profile }
+            ? { kind: "ok", profile, includes }
             : { kind: "error", message: "haunt.gg answered with something that is not a user" };
     }
 
@@ -174,8 +203,20 @@ export function classifyResponse({ status, retryAfter, data }: RawLookupResponse
     // `code` is what the API promises to keep stable, so it decides before the status does.
     if (code != null) {
         const accountStatus = Object.hasOwn(STATUS_CODES, code) ? STATUS_CODES[code] : undefined;
-        if (accountStatus)
-            return { kind: "status", status: accountStatus, message: error!.error || STATUS_FALLBACK_MESSAGES[accountStatus] };
+        if (accountStatus) {
+            const user = accountStatus === "banned" ? parseStatusUser(error!.body) : undefined;
+            const reason = accountStatus === "unavailable" && typeof error!.body.reason === "string" && Object.hasOwn(UNAVAILABLE_REASONS, error!.body.reason)
+                ? UNAVAILABLE_REASONS[error!.body.reason]
+                : undefined;
+
+            return {
+                kind: "status",
+                status: accountStatus,
+                message: error!.error || STATUS_FALLBACK_MESSAGES[accountStatus],
+                ...(user && { user }),
+                ...(reason && { reason })
+            };
+        }
 
         if (code === "NOT_FOUND") return { kind: "none" };
         if (code === "RATE_LIMITED") return { kind: "ratelimited", retryAfterMs: retryAfterMs(retryAfter) };
@@ -194,11 +235,15 @@ export function classifyResponse({ status, retryAfter, data }: RawLookupResponse
     return { kind: "error", message: error?.error ?? `haunt.gg answered with HTTP ${status}` };
 }
 
-export async function lookupByDiscordId(apiKey: string, discordId: string): Promise<LookupResult> {
+export async function lookup(apiKey: string, target: LookupTarget, includes: readonly LookupInclude[]): Promise<LookupResult> {
     try {
-        return classifyResponse(await request(apiKey, discordId));
+        return classifyResponse(await request(apiKey, target, includes), includes);
     } catch (e) {
         // Only reachable when the bridge to the main process itself fails.
         return { kind: "error", message: e instanceof Error ? e.message : String(e) };
     }
+}
+
+export function lookupByDiscordId(apiKey: string, discordId: string, includes: readonly LookupInclude[]) {
+    return lookup(apiKey, { type: "discord", value: discordId }, includes);
 }

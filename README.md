@@ -49,15 +49,28 @@ Hover the **name** and you see the profile address; clicking it opens `haunt.gg/
 └──────────────────────────────┘
 ```
 
-**Accounts haunt.gg does not hand out** get a label instead of a name. haunt.gg says that the account exists and why it is hidden, nothing more:
+**Accounts haunt.gg does not hand out** get a label. haunt.gg says who a banned account is, and for the others only that the account exists and why it is hidden:
 
 ```
-john | haunt.gg BANNED          ← banned on haunt.gg
-mia  | haunt.gg PRIVATE         ← switched off public API access
-sam  | haunt.gg UNAVAILABLE     ← disabled, or scheduled for deletion
+john | john #1337 BANNED             ← banned on haunt.gg
+mia  | haunt.gg PRIVATE              ← switched off public API access
+sam  | haunt.gg DISABLED             ← disabled by its owner
+kim  | haunt.gg PENDING DELETION     ← scheduled for deletion
 ```
 
 Hover the label for the exact sentence haunt.gg answered with. The profile shows the same as a small card, and a normal profile card gets an **INACTIVE** label when the account has not been used for over a year.
+
+**Right-click a user** and there is a **Haunt** entry: open the haunt.gg profile, copy the UID, or look the person up again right now. That also works for people who are not in the chat, in the member list for example.
+
+**`/haunt`** goes the other way round. Give it a haunt.gg username, a UID (`#1337`), a haunt.gg link or a Discord ID, or pick a Discord user, and it answers with the account and the Discord account behind it. Only you see the answer:
+
+```
+/haunt query: curet
+/haunt query: #1337
+/haunt user: @someone
+```
+
+If a username consists of digits only, add `by: username`, otherwise it is read as a UID.
 
 Every single field can be switched off in the settings. People without a haunt.gg account show nothing at all, so nothing gets cluttered.
 
@@ -166,6 +179,8 @@ Vencord/
             ├── cache.ts
             ├── badges.ts
             ├── badgeCatalog.ts
+            ├── command.ts
+            ├── contextMenu.tsx
             ├── native.ts
             ├── request.ts
             ├── types.ts
@@ -293,6 +308,12 @@ Found under **Settings → Vencord → Plugins → Haunt → gear icon**.
 | **Profile: join date** | When the account was created | on |
 | **Profile: badge size** | Badge size in pixels | 20 |
 
+### Right-click menu
+
+| Setting | What it does | Default |
+|---|---|---|
+| **Show in the user context menu** | The **Haunt** entry when you right-click a user | on |
+
 ### Badges
 
 | Setting | What it does | Default |
@@ -383,7 +404,9 @@ Your `src/userplugins` folder is left alone — Git ignores it on purpose. You o
 
 ### Refreshing the badge catalog
 
-Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken from the official haunt.gg badge list (25 badges, 52 tiers). The images come from the API live, the texts do not. If haunt.gg adds new badges, their names and descriptions are missing until somebody updates that file — the badges themselves still show up.
+Nothing to do. haunt.gg sends the name, the description and the colour of every badge along with its image, so a new badge shows up correctly by itself.
+
+`badgeCatalog.ts` holds the same texts baked in, as a fallback for a haunt.gg that does not send them yet. Once the API does, the file can be deleted.
 
 ---
 
@@ -393,7 +416,7 @@ Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken fr
 
 **Why the restart for the badges?** That is a second, unrelated thing: a security rule (CSP) only lets Discord load images from known addresses. Vencord can whitelist addresses, but it does so exactly once, when the main process starts. Reloading the window never reaches that part.
 
-**Why the queue?** The API answers about one person per request — there is no way to ask about twenty at once. In a busy channel that would mean a lot of simultaneous requests. So the plugin works through them one at a time with a short pause, remembers every answer (including "haunt.gg does not know them"), and backs off on its own when it is told to slow down. A profile you open goes to the front of the queue, people you scrolled past are dropped from it, and bots are never looked up.
+**Why the queue?** The API answers about one person per request — there is no way to ask about twenty at once. In a busy channel that would mean a lot of simultaneous requests. So the plugin works through them one at a time with a short pause, remembers every answer (including "haunt.gg does not know them"), and backs off on its own when it is told to slow down. A profile you open goes to the front of the queue, people you scrolled past are dropped from it, and bots are never looked up. It also only asks for what you show: with the views switched off in the settings, the views are not requested, which saves haunt.gg the work. Switch something on later and the people on screen are fetched again with it.
 
 **What happens when something fails?** The plugin tells the answers apart by the `code` haunt.gg sends, not by the wording. An answer about the *person* (banned, private, disabled, unknown) is remembered and shown. An answer about *your key* stops the lookups. A rate limit pauses them for as long as haunt.gg asks, and the person it hit is asked about again afterwards. Anything else (no answer within 10 seconds, a server error) is retried later with growing pauses, and after three failures in a row everything pauses instead of failing one by one. Data that was already loaded is never thrown away because a refresh failed.
 

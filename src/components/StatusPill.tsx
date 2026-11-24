@@ -6,17 +6,24 @@
 
 import { Tooltip } from "@webpack/common";
 
-import { HauntAccountStatus } from "../types";
+import { HauntAccountStatus, HauntUnavailableReason } from "../types";
 import { cl } from "../utils";
 
-export type PillKind = HauntAccountStatus | "inactive";
+export type PillKind = HauntAccountStatus | HauntUnavailableReason | "inactive";
 
 const LABELS: Record<PillKind, string> = {
     banned: "Banned",
     private: "Private",
     unavailable: "Unavailable",
+    disabled: "Disabled",
+    "pending-deletion": "Pending deletion",
     inactive: "Inactive"
 };
+
+/** The pill of an account status: the reason where the API gives one, the status itself otherwise. */
+export function statusPillKind(state: { status: HauntAccountStatus; reason?: HauntUnavailableReason; }): PillKind {
+    return state.status === "unavailable" && state.reason ? state.reason : state.status;
+}
 
 interface Props {
     kind: PillKind;

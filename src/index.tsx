@@ -15,9 +15,11 @@ import { User } from "@vencord/discord-types";
 import { showToast } from "@webpack/common";
 
 import { commitApiKey, dropPersistedCache, refreshAll, setKeyProblemHandler, startLookups, stopLookups } from "./cache";
+import { hauntCommand } from "./command";
 import { ChatDecoration } from "./components/ChatDecoration";
 import { HauntSettings } from "./components/HauntSettings";
 import { ProfileSection } from "./components/ProfileSection";
+import { UserContextMenuPatch } from "./contextMenu";
 
 const DECORATION_ID = "Haunt";
 const SETTINGS_PREFIX = "plugins.Haunt";
@@ -160,6 +162,13 @@ export const settings = definePluginSettings({
         default: 20
     },
 
+    showContextMenu: {
+        type: OptionType.BOOLEAN,
+        displayName: "Show in the user context menu",
+        description: "Add a Haunt entry to the right-click menu of a user: open the profile, copy the UID, reload",
+        default: true
+    },
+
     badgesOnlyEnabled: {
         type: OptionType.BOOLEAN,
         displayName: "Only badges shown on the profile",
@@ -246,9 +255,15 @@ const profilePopoutComponent = ErrorBoundary.wrap(
 export default definePlugin({
     name: "Haunt",
     description: "Shows the haunt.gg profile behind a Discord account — username, UID, badges and stats in chat and in user popouts",
-    authors: [{ name: "curet-dev", id: 0n }],
+    authors: [{ name: "curet-dev", id: 335500798752456705n }],
     dependencies: ["MessageDecorationsAPI"],
     settings,
+
+    commands: [hauntCommand],
+
+    contextMenus: {
+        "user-context": UserContextMenuPatch
+    },
 
     patches: [
         {

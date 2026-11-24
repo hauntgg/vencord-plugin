@@ -143,6 +143,20 @@
     gap: 8px;
 }
 
+.vc-haunt-profile-notice-user {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    color: inherit;
+}
+
+.vc-haunt-profile-notice-user > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .vc-haunt-profile-notice-text {
     overflow-wrap: anywhere;
 }

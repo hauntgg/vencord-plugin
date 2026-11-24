@@ -13,12 +13,12 @@ import { ReactNode } from "react";
 
 import { settings } from "..";
 import { listBadges } from "../badges";
-import { retryLookup, useHauntState } from "../cache";
-import { HauntProfile } from "../types";
+import { reloadLookup, useHauntState } from "../cache";
+import { HauntProfile, HauntStatusUser } from "../types";
 import { cl, formatDate, formatNumber } from "../utils";
 import { HauntBadgeRow } from "./HauntBadgeRow";
 import { ProfileLink } from "./ProfileLink";
-import { StatusPill } from "./StatusPill";
+import { StatusPill, statusPillKind } from "./StatusPill";
 
 const ProfileCardClasses = findCssClassesLazy("cardsList", "card", "container");
 
@@ -43,12 +43,24 @@ function Field({ label, value, onClick, title }: { label: string; value: string;
     );
 }
 
-/** The header of a card that has no account to show: what it is about, and a pill or action on the right. */
-function NoticeCard({ aside, children }: { aside: ReactNode; children: ReactNode; }) {
+/**
+ * The card of an account there is no profile for: who or what it is about on
+ * the left (the user where the API names one), a pill or action on the right.
+ */
+function NoticeCard({ user, aside, children }: { user?: HauntStatusUser | undefined; aside: ReactNode; children: ReactNode; }) {
+    const { profileShowUsername, profileShowUid } = settings.store;
+
     return (
         <Card>
             <div className={cl("profile-notice-header")}>
-                <Span size="sm" weight="semibold">haunt.gg</Span>
+                {user && (profileShowUsername || profileShowUid)
+                    ? (
+                        <ProfileLink username={user.username} className={cl("profile-notice-user")}>
+                            {profileShowUsername && <Span size="sm" weight="semibold">{user.username}</Span>}
+                            {profileShowUid && <Span className={cl("profile-displayname")} size="sm">#{user.uid}</Span>}
+                        </ProfileLink>
+                    )
+                    : <Span size="sm" weight="semibold">haunt.gg</Span>}
                 {aside}
             </div>
             <Span className={cl("profile-notice-text")} size="sm">{children}</Span>
@@ -133,7 +145,7 @@ export function ProfileSection({ userId }: { userId: string; }) {
         // The account exists, but the API names no user for it, only the reason.
         case "status":
             return profileShowStatus
-                ? <NoticeCard aside={<StatusPill kind={state.status} />}>{state.message}</NoticeCard>
+                ? <NoticeCard user={state.user} aside={<StatusPill kind={statusPillKind(state)} />}>{state.message}</NoticeCard>
                 : null;
 
         // Without this an opened profile could not tell "no account" from "could not ask".
@@ -141,7 +153,7 @@ export function ProfileSection({ userId }: { userId: string; }) {
             return (
                 <NoticeCard
                     aside={
-                        <button className={cl("profile-retry")} onClick={() => retryLookup(userId)}>
+                        <button className={cl("profile-retry")} onClick={() => void reloadLookup(userId)}>
                             Try again
                         </button>
                     }

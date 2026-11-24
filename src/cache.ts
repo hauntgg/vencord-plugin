@@ -10,7 +10,7 @@ import { useEffect, useState } from "@webpack/common";
 
 import { settings } from ".";
 import { isPlausibleApiKey, logger, lookupByDiscordId, LookupResult } from "./api";
-import { HauntAccountStatus, HauntProfile } from "./types";
+import { HauntAccountStatus, HauntProfile, HauntStatusUser, HauntUnavailableReason, LOOKUP_INCLUDES, LookupInclude } from "./types";
 
 const STORE_KEY = "haunt-profile-cache-v2";
 /** Keys of earlier cache formats, removed on start. */
@@ -34,9 +34,10 @@ const KEY_RETRY_MAX = 60 * 60_000;
 
 /** What a lookup can settle on. Everything else (errors, rate limits) is retried and never cached. */
 export type CachedResult =
-    | { kind: "ok"; profile: HauntProfile; }
+    /** `includes`: the optional parts the profile was fetched with. Missing ones read as empty, not as zero. */
+    | { kind: "ok"; profile: HauntProfile; includes: readonly LookupInclude[]; }
     | { kind: "none"; }
-    | { kind: "status"; status: HauntAccountStatus; message: string; };
+    | { kind: "status"; status: HauntAccountStatus; message: string; user?: HauntStatusUser; reason?: HauntUnavailableReason; };
 
 /** What a component gets to render. */
 export type HauntState =
@@ -82,6 +83,10 @@ const statusListeners = new Set<() => void>();
 /** Discord ids waiting for a lookup, next one first. */
 const pending: string[] = [];
 const queued = new Set<string>();
+/** Ids somebody asked to reload by hand: looked up even when fresh or off screen. */
+const forced = new Set<string>();
+/** Who is waiting for the outcome of such a reload. */
+const waiters = new Map<string, ((state: HauntState) => void)[]>();
 
 let running = false;
 let pumping = false;
@@ -121,7 +126,8 @@ function isCachedResult(value: unknown): value is CachedResult {
         case "ok":
             return typeof result.profile?.user?.username === "string"
                 && typeof result.profile.user.id === "string"
-                && Array.isArray(result.profile.badges);
+                && Array.isArray(result.profile.badges)
+                && Array.isArray(result.includes);
         default:
             return false;
     }
@@ -237,7 +243,30 @@ function store(discordId: string, result: CachedResult, ttl: number) {
     notify(discordId);
 }
 
-const isFresh = (discordId: string) => (cache.get(discordId)?.expiresAt ?? 0) > Date.now();
+/**
+ * The optional parts worth asking for: only what some switched-on display
+ * shows. One set for chat and profile alike, because a second request for the
+ * same user costs more of the rate limit than a few extra fields.
+ */
+export function neededIncludes(): LookupInclude[] {
+    const s = settings.store;
+    const needed: Record<LookupInclude, boolean> = {
+        badges: (s.showInChat && s.chatShowBadges) || (s.showInProfile && s.profileShowBadges),
+        views: s.showInProfile && s.profileShowViews,
+        feedback: s.showInProfile && s.profileShowFeedback
+    };
+
+    return LOOKUP_INCLUDES.filter(include => needed[include]);
+}
+
+function isFresh(discordId: string) {
+    const hit = cache.get(discordId);
+    if (!hit || hit.expiresAt <= Date.now()) return false;
+
+    // A profile fetched before a display was switched on lacks what that display shows.
+    const { result } = hit;
+    return result.kind !== "ok" || neededIncludes().every(include => result.includes.includes(include));
+}
 
 function getState(discordId: string): HauntState {
     // A stale answer beats none: it stays on screen while it is fetched again, and when that fails.
@@ -268,6 +297,18 @@ function nap(ms: number) {
 function dropPending() {
     pending.length = 0;
     queued.clear();
+    forced.clear();
+    for (const discordId of [...waiters.keys()]) settle(discordId);
+}
+
+/** Tells whoever asked for a reload what came of it. */
+function settle(discordId: string) {
+    const waiting = waiters.get(discordId);
+    if (!waiting) return;
+
+    waiters.delete(discordId);
+    const state = getState(discordId);
+    waiting.forEach(resolve => resolve(state));
 }
 
 function enqueue(discordId: string, priority: boolean) {
@@ -289,6 +330,7 @@ function enqueue(discordId: string, priority: boolean) {
 
 /** Whether a lookup for this user would be answered and is still worth its request. */
 function isWanted(discordId: string) {
+    if (forced.has(discordId)) return true;
     if (isFresh(discordId)) return false;
     if ((failures.get(discordId)?.retryAt ?? 0) > Date.now()) return false;
 
@@ -338,9 +380,16 @@ async function pump() {
 
             const epoch = keyEpoch;
             lastRequestAt = Date.now();
-            const result = await lookupByDiscordId(apiKey, discordId);
+            const result = await lookupByDiscordId(apiKey, discordId, neededIncludes());
 
             handleResult(discordId, result, epoch === keyEpoch);
+
+            // Rate limited, or answered for a key that is gone: the user is queued again and still owed an answer.
+            const retried = result.kind === "ratelimited" || (result.kind === "key" && epoch !== keyEpoch);
+            if (!retried) {
+                forced.delete(discordId);
+                settle(discordId);
+            }
         }
     } catch (e) {
         logger.error("The lookup queue stopped unexpectedly", e);
@@ -355,7 +404,7 @@ function handleResult(discordId: string, result: LookupResult, sameKey: boolean)
     switch (result.kind) {
         case "ok":
             succeeded(sameKey);
-            store(discordId, { kind: "ok", profile: result.profile }, settings.store.cacheTtlMinutes * 60_000);
+            store(discordId, { kind: "ok", profile: result.profile, includes: result.includes }, settings.store.cacheTtlMinutes * 60_000);
             break;
 
         case "none":
@@ -366,7 +415,13 @@ function handleResult(discordId: string, result: LookupResult, sameKey: boolean)
         // Kept only as long as a profile: a ban gets lifted, a profile goes public again.
         case "status":
             succeeded(sameKey);
-            store(discordId, { kind: "status", status: result.status, message: result.message }, settings.store.cacheTtlMinutes * 60_000);
+            store(discordId, {
+                kind: "status",
+                status: result.status,
+                message: result.message,
+                ...(result.user && { user: result.user }),
+                ...(result.reason && { reason: result.reason })
+            }, settings.store.cacheTtlMinutes * 60_000);
             break;
 
         case "key":
@@ -468,13 +523,30 @@ export function commitApiKey() {
     resumeLookups();
 }
 
-/** Asks for a user again right away, past their retry delay. For the retry button of a failed lookup. */
-export function retryLookup(discordId: string) {
+/**
+ * Looks a user up again right now: past the cache, past their retry delay, at
+ * the front of the queue. Resolves with what they are afterwards, or returns
+ * `null` when no lookup can run (no usable key, or the key was refused).
+ */
+export function reloadLookup(discordId: string): Promise<HauntState> | null {
+    if (!canLookup()) return null;
+
     failures.delete(discordId);
     outageUntil = 0;
+    forced.add(discordId);
     notify(discordId);
-    ensure(discordId, true);
+
+    return new Promise(resolve => {
+        const waiting = waiters.get(discordId);
+        if (waiting) waiting.push(resolve);
+        else waiters.set(discordId, [resolve]);
+
+        enqueue(discordId, true);
+    });
 }
+
+/** What is known about a user right now, without asking for anything. For code outside a component. */
+export const peekState = getState;
 
 /** Feeds an answer that was fetched outside the queue (the key test) into the cache. */
 export function rememberResult(discordId: string, result: LookupResult) {

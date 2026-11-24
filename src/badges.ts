@@ -46,7 +46,9 @@ function resolveBadge(badge: HauntBadge): ResolvedBadge {
         ? BADGE_TIER_CATALOG[badge.badgeId]?.[tierNumber]
         : undefined;
 
-    const official = tier ?? catalog;
+    // What the API says about the badge comes first. The baked-in list only
+    // covers an API that does not send `catalog` yet.
+    const official = badge.catalog ?? tier ?? catalog;
     const apiTier = tierNumber != null
         ? badge.tiers.find(t => t.tier === tierNumber)
         : undefined;

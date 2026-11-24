@@ -11,7 +11,7 @@ import { showToast, UserStore, useState } from "@webpack/common";
 
 import { settings } from "..";
 import { isPlausibleApiKey, logger, lookupByDiscordId } from "../api";
-import { clearCache, commitApiKey, rememberResult, resumeLookups, useLookupStatus } from "../cache";
+import { clearCache, commitApiKey, neededIncludes, rememberResult, resumeLookups, useLookupStatus } from "../cache";
 import { cl } from "../utils";
 
 const secondsUntil = (timestamp: number) => Math.max(1, Math.ceil((timestamp - Date.now()) / 1000));
@@ -52,7 +52,7 @@ export function HauntSettings() {
 
         setTesting(true);
         try {
-            const result = await lookupByDiscordId(apiKey, discordId);
+            const result = await lookupByDiscordId(apiKey, discordId, neededIncludes());
 
             switch (result.kind) {
                 case "ok":
