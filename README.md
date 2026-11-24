@@ -49,6 +49,16 @@ Hover the **name** and you see the profile address; clicking it opens `haunt.gg/
 └──────────────────────────────┘
 ```
 
+**Accounts haunt.gg does not hand out** get a label instead of a name. haunt.gg says that the account exists and why it is hidden, nothing more:
+
+```
+john | haunt.gg BANNED          ← banned on haunt.gg
+mia  | haunt.gg PRIVATE         ← switched off public API access
+sam  | haunt.gg UNAVAILABLE     ← disabled, or scheduled for deletion
+```
+
+Hover the label for the exact sentence haunt.gg answered with. The profile shows the same as a small card, and a normal profile card gets an **INACTIVE** label when the account has not been used for over a year.
+
 Every single field can be switched off in the settings. People without a haunt.gg account show nothing at all, so nothing gets cluttered.
 
 ---
@@ -157,6 +167,7 @@ Vencord/
             ├── badges.ts
             ├── badgeCatalog.ts
             ├── native.ts
+            ├── request.ts
             ├── types.ts
             ├── utils.ts
             ├── styles.css
@@ -165,7 +176,8 @@ Vencord/
                 ├── HauntBadgeRow.tsx
                 ├── HauntSettings.tsx
                 ├── ProfileLink.tsx
-                └── ProfileSection.tsx
+                ├── ProfileSection.tsx
+                └── StatusPill.tsx
 ```
 
 > [!WARNING]
@@ -228,8 +240,12 @@ What the answer means:
 |---|---|
 | `Key works — you are <name> (#<uid>)` | All good, you are done |
 | `Key works, but no haunt.gg account is linked to your Discord` | The key is fine, but **your own** Discord is not linked to haunt.gg. Just a note — the plugin still works for everyone else |
-| `Key rejected: …` | Key mistyped, or missing the `lookup:user` permission |
-| `Lookup failed: …` | Usually no restart after `pnpm inject`, or no internet connection |
+| `Key works. About your own account, haunt.gg says: …` | The key is fine, but your own account is banned, private or disabled. The plugin still works for everyone else |
+| `Key rejected: …` | The message says why: mistyped, expired, disabled, or missing the `lookup:user` permission |
+| `Rate limited — try again in …s` | Too many requests in a short time. Wait and press the button again |
+| `Lookup failed: …` | Usually no restart after `pnpm inject`, no internet connection, or haunt.gg is down |
+
+The button stays grey until the field holds something that looks like a key (`haunt_` followed by the rest, no spaces).
 
 From here on chat and profiles fill in by themselves. The first time it takes a moment per person, after that the data is remembered.
 
@@ -244,6 +260,7 @@ Found under **Settings → Vencord → Plugins → Haunt → gear icon**.
 | Setting | What it does |
 |---|---|
 | **API key** | Your key from haunt.gg |
+| **Status line** | One sentence on what the plugin is doing right now: running, rate limited, haunt.gg not answering, or stopped because of the key, with the reason |
 | **Test key** | Tries the key against your own account |
 | **Clear cache** | Throws away everything remembered so far. Handy when somebody changed their profile and you do not want to wait |
 
@@ -255,6 +272,7 @@ Found under **Settings → Vencord → Plugins → Haunt → gear icon**.
 | **Chat: username** | Shows the haunt.gg name | on |
 | **Chat: UID** | Shows the number, e.g. `#1337` | on |
 | **Chat: badges** | Shows the badges | on |
+| **Chat: account status** | Shows the `BANNED` / `PRIVATE` / `UNAVAILABLE` label for accounts haunt.gg does not hand out | on |
 | **Chat: separator** | What sits between the Discord and the Haunt name | ` \| ` |
 | **Chat: badge limit** | How many badges are shown individually. The rest is collapsed into `+17`, with all their names on hover | 5 |
 | **Chat: badge size** | Badge size in pixels | 16 |
@@ -269,6 +287,7 @@ Found under **Settings → Vencord → Plugins → Haunt → gear icon**.
 | **Profile: UID** | The number | on |
 | **Profile: internal ID** | The internal account ID, click it to copy | on |
 | **Profile: badges** | The badge row | on |
+| **Profile: account status** | The card for banned, private and disabled accounts, and the `INACTIVE` label | on |
 | **Profile: views** | How often the profile was viewed | on |
 | **Profile: likes and dislikes** | The feedback tally | on |
 | **Profile: join date** | When the account was created | on |
@@ -309,13 +328,19 @@ Work through this in order:
 3. Does the person you are looking at even have a haunt.gg account with Discord linked? Test on yourself, or on somebody you know for sure.
 4. After `pnpm inject`, did you quit Discord **completely**, including from the system tray?
 
-### Name and UID are there, but the badges are empty or broken image icons
+### Name and UID are there, but the badges or the avatar are missing
 
-Discord blocks images from unknown sites by default. The plugin lifts that block for `assets.haunt.gg` and `r2.haunt.gg`, but only while Discord is **starting**. So: quit Discord completely (system tray too) and start it again. `Ctrl` + `R` does not do it.
+Discord blocks images from unknown sites by default. The plugin lifts that block for `assets.haunt.gg`, `r2.haunt.gg` and `haunt.gg`, but only while Discord is **starting**. So: quit Discord completely (system tray too) and start it again. `Ctrl` + `R` does not do it.
 
-### A red "Haunt: Invalid API key" message
+### A red "Haunt: … Lookups are paused" message
 
-The key is wrong or lacks the `lookup:user` permission. The plugin deliberately stops asking after that, so it does not keep hammering a closed door. Enter a working key and it picks up again by itself.
+haunt.gg refused the key, and the message says why (unknown, expired, disabled, no `lookup:user` permission, …). The plugin deliberately stops asking after that, so it does not keep hammering a closed door, and it only tells you once. Enter a working key and it picks up again by itself. It also tries the old key again on its own every now and then, because a locked or used-up key can start working again without being changed.
+
+This message is only about **your key**. Somebody else being banned on haunt.gg never causes it — that shows up as a label next to their name.
+
+### A profile says "The lookup failed."
+
+haunt.gg could not be asked about this person (no connection, a timeout, a server error). Hover the text for the reason, press **Try again**, or look at the status line in the plugin settings. If the person was looked up before, the older data stays on screen instead.
 
 ### I changed my haunt.gg profile but still see the old data
 
@@ -368,6 +393,8 @@ Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken fr
 
 **Why the restart for the badges?** That is a second, unrelated thing: a security rule (CSP) only lets Discord load images from known addresses. Vencord can whitelist addresses, but it does so exactly once, when the main process starts. Reloading the window never reaches that part.
 
-**Why the queue?** The API answers about one person per request — there is no way to ask about twenty at once. In a busy channel that would mean a lot of simultaneous requests. So the plugin works through them one at a time with a short pause, remembers every answer (including "haunt.gg does not know them"), and backs off on its own when it is told to slow down.
+**Why the queue?** The API answers about one person per request — there is no way to ask about twenty at once. In a busy channel that would mean a lot of simultaneous requests. So the plugin works through them one at a time with a short pause, remembers every answer (including "haunt.gg does not know them"), and backs off on its own when it is told to slow down. A profile you open goes to the front of the queue, people you scrolled past are dropped from it, and bots are never looked up.
+
+**What happens when something fails?** The plugin tells the answers apart by the `code` haunt.gg sends, not by the wording. An answer about the *person* (banned, private, disabled, unknown) is remembered and shown. An answer about *your key* stops the lookups. A rate limit pauses them for as long as haunt.gg asks, and the person it hit is asked about again afterwards. Anything else (no answer within 10 seconds, a server error) is retried later with growing pauses, and after three failures in a row everything pauses instead of failing one by one. Data that was already loaded is never thrown away because a refresh failed.
 
 **What gets stored?** Only the looked-up profile data, locally in Discord's own storage, and only for as long as the cache duration runs. The API key lives in the Vencord settings. Nothing goes to Discord, to me, or to anyone else — only to haunt.gg itself, which is what the lookup needs.

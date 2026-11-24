@@ -36,6 +36,8 @@ export interface HauntBadge {
     order: number;
     image: HauntAsset | null;
     imageUrl: string | null;
+    /** Iconify markup of a custom badge that uses an icon instead of an upload. */
+    iconSvg?: string | null;
     tiers: HauntBadgeTier[];
 }
 
@@ -66,10 +68,34 @@ export interface HauntProfile {
     feedback: HauntFeedback | null;
 }
 
+/** A successful `GET /api/lookup/user` body. Failures are a `HauntErrorBody`. */
 export interface HauntLookupResponse {
-    error: string | null;
-    user?: HauntUser;
+    user: HauntUser;
     badges?: HauntBadge[];
     views?: number;
     feedback?: HauntFeedback;
+}
+
+/**
+ * Every failed response of the haunt.gg API. `code` is the stable identifier,
+ * `error` an English sentence whose wording may change.
+ */
+export interface HauntErrorBody {
+    error: string;
+    code?: string;
+    param?: string;
+}
+
+/**
+ * An account that exists but that the API refuses to hand out:
+ * banned (`USER_BANNED`), opted out of the public API (`PROFILE_PRIVATE`), or
+ * disabled / scheduled for deletion by its owner (`USER_UNAVAILABLE`).
+ */
+export type HauntAccountStatus = "banned" | "private" | "unavailable";
+
+/** What the transport hands back: the raw answer, or `status: 0` when no answer arrived. */
+export interface RawLookupResponse {
+    status: number;
+    retryAfter: string | null;
+    data: string;
 }
