@@ -45,6 +45,31 @@
     font-variant-numeric: tabular-nums;
 }
 
+.vc-haunt-chat-site {
+    opacity: 0.7;
+}
+
+.vc-haunt-status {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--text-muted);
+    background-color: var(--background-modifier-accent, rgb(128 128 128 / 24%));
+}
+
+.vc-haunt-status-banned {
+    color: var(--text-feedback-critical, var(--status-danger, #f23f43));
+    background-color: color-mix(in srgb, var(--status-danger, #f23f43) 18%, transparent);
+}
+
 .vc-haunt-badges {
     display: inline-flex;
     align-items: center;
@@ -55,6 +80,13 @@
 .vc-haunt-badge {
     object-fit: contain;
     vertical-align: middle;
+}
+
+/* An icon badge: its markup is the mask, the background the colour. */
+.vc-haunt-badge-icon {
+    display: inline-block;
+    flex-shrink: 0;
+    background-color: currentcolor;
 }
 
 .vc-haunt-badge-overflow {
@@ -88,13 +120,63 @@
     padding: 12px;
 }
 
+.vc-haunt-profile-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .vc-haunt-profile-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     color: inherit;
     text-align: left;
+}
+
+.vc-haunt-profile-notice-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.vc-haunt-profile-notice-user {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    color: inherit;
+}
+
+.vc-haunt-profile-notice-user > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-haunt-profile-notice-text {
+    overflow-wrap: anywhere;
+}
+
+.vc-haunt-profile-notice-muted {
+    color: var(--text-muted);
+}
+
+.vc-haunt-profile-retry {
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-link);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.vc-haunt-profile-retry:hover {
+    text-decoration: underline;
 }
 
 .vc-haunt-profile-header:hover .vc-haunt-profile-external {
@@ -183,4 +265,12 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 8px;
+}
+
+.vc-haunt-settings-status {
+    color: var(--text-muted);
+}
+
+.vc-haunt-settings-status-problem {
+    color: var(--text-feedback-warning, var(--status-warning, #f0b232));
 }

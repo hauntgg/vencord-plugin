@@ -9,14 +9,17 @@ import "./styles.css";
 import { addMessageDecoration, removeMessageDecoration } from "@api/MessageDecorations";
 import { definePluginSettings, SettingsStore } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { debounce } from "@shared/debounce";
 import definePlugin, { OptionType } from "@utils/types";
 import { User } from "@vencord/discord-types";
 import { showToast } from "@webpack/common";
 
-import { clearCache, dropPersistedCache, loadPersistedCache, refreshAll, setKeyRejectedHandler } from "./cache";
+import { commitApiKey, dropPersistedCache, refreshAll, setKeyProblemHandler, startLookups, stopLookups } from "./cache";
+import { hauntCommand } from "./command";
 import { ChatDecoration } from "./components/ChatDecoration";
 import { HauntSettings } from "./components/HauntSettings";
 import { ProfileSection } from "./components/ProfileSection";
+import { UserContextMenuPatch } from "./contextMenu";
 
 const DECORATION_ID = "Haunt";
 const SETTINGS_PREFIX = "plugins.Haunt";
@@ -29,7 +32,9 @@ export const settings = definePluginSettings({
         default: "",
         placeholder: "haunt_…",
         componentProps: { type: "password" },
-        onChange: () => clearCache()
+        // Fires on every keystroke. Lookups switch to the new key once typing has
+        // settled, so a half-typed key is never sent and never raises an error.
+        onChange: debounce(() => commitApiKey(), 750)
     },
     manage: {
         type: OptionType.COMPONENT,
@@ -59,6 +64,12 @@ export const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         displayName: "Chat: badges",
         description: "Show the badges the user has enabled",
+        default: true
+    },
+    chatShowStatus: {
+        type: OptionType.BOOLEAN,
+        displayName: "Chat: account status",
+        description: "Show a label next to the name when the haunt.gg account is banned, private or disabled",
         default: true
     },
     chatSeparator: {
@@ -119,6 +130,12 @@ export const settings = definePluginSettings({
         description: "Show the badges the user has enabled",
         default: true
     },
+    profileShowStatus: {
+        type: OptionType.BOOLEAN,
+        displayName: "Profile: account status",
+        description: "Show when the haunt.gg account is banned, private, disabled or inactive",
+        default: true
+    },
     profileShowViews: {
         type: OptionType.BOOLEAN,
         displayName: "Profile: views",
@@ -143,6 +160,13 @@ export const settings = definePluginSettings({
         description: "Badge size in pixels",
         markers: [16, 20, 24, 28, 32],
         default: 20
+    },
+
+    showContextMenu: {
+        type: OptionType.BOOLEAN,
+        displayName: "Show in the user context menu",
+        description: "Add a Haunt entry to the right-click menu of a user: open the profile, copy the UID, reload",
+        default: true
     },
 
     badgesOnlyEnabled: {
@@ -192,6 +216,7 @@ export const settings = definePluginSettings({
     chatShowUsername: { hidden() { return !this.store.showInChat; } },
     chatShowUid: { hidden() { return !this.store.showInChat; } },
     chatShowBadges: { hidden() { return !this.store.showInChat; } },
+    chatShowStatus: { hidden() { return !this.store.showInChat; } },
     chatSeparator: { hidden() { return !this.store.showInChat; } },
     chatMaxBadges: { hidden() { return !this.store.showInChat || !this.store.chatShowBadges; } },
     chatBadgeSize: { hidden() { return !this.store.showInChat || !this.store.chatShowBadges; } },
@@ -201,6 +226,7 @@ export const settings = definePluginSettings({
     profileShowUid: { hidden() { return !this.store.showInProfile; } },
     profileShowId: { hidden() { return !this.store.showInProfile; } },
     profileShowBadges: { hidden() { return !this.store.showInProfile; } },
+    profileShowStatus: { hidden() { return !this.store.showInProfile; } },
     profileShowViews: { hidden() { return !this.store.showInProfile; } },
     profileShowFeedback: { hidden() { return !this.store.showInProfile; } },
     profileShowCreatedAt: { hidden() { return !this.store.showInProfile; } },
@@ -211,8 +237,9 @@ export const settings = definePluginSettings({
 
 function syncChatDecoration() {
     if (settings.store.showInChat) {
+        // Bots and webhooks cannot link a haunt.gg account, so they are never worth a request.
         addMessageDecoration(DECORATION_ID, ({ message }) =>
-            message?.author == null
+            message?.author == null || message.author.bot || message.webhookId != null
                 ? null
                 : <ChatDecoration userId={message.author.id} />);
     } else {
@@ -221,16 +248,22 @@ function syncChatDecoration() {
 }
 
 const profilePopoutComponent = ErrorBoundary.wrap(
-    ({ user }: { user: User; }) => user?.id ? <ProfileSection userId={user.id} /> : null,
+    ({ user }: { user: User; }) => user?.id && !user.bot ? <ProfileSection userId={user.id} /> : null,
     { noop: true }
 );
 
 export default definePlugin({
     name: "Haunt",
     description: "Shows the haunt.gg profile behind a Discord account — username, UID, badges and stats in chat and in user popouts",
-    authors: [{ name: "curet-dev", id: 0n }],
+    authors: [{ name: "curet-dev", id: 335500798752456705n }],
     dependencies: ["MessageDecorationsAPI"],
     settings,
+
+    commands: [hauntCommand],
+
+    contextMenus: {
+        "user-context": UserContextMenuPatch
+    },
 
     patches: [
         {
@@ -252,17 +285,19 @@ export default definePlugin({
     profilePopoutComponent,
 
     start() {
-        setKeyRejectedHandler(message =>
-            showToast({ text: `Haunt: ${message} — check your API key in the plugin settings`, variant: "critical" }));
+        setKeyProblemHandler(({ message }) =>
+            showToast({ text: `Haunt: ${message}. Lookups are paused — check the key in the plugin settings.`, variant: "critical" }));
 
         SettingsStore.addPrefixChangeListener(SETTINGS_PREFIX, refreshAll);
 
-        void loadPersistedCache();
+        startLookups();
         syncChatDecoration();
     },
 
     stop() {
         SettingsStore.removePrefixChangeListener(SETTINGS_PREFIX, refreshAll);
         removeMessageDecoration(DECORATION_ID);
+        stopLookups();
+        setKeyProblemHandler(undefined);
     }
 });
